@@ -1,0 +1,522 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>小さなコンピュータ ― 機械語版（32ビット）</title>
+<style>
+  :root{
+    --panel:#2b3033; --panel-3:#41484c; --edge:#1b1f21;
+    --silk:#e9e5d8; --dim:#98a0a3;
+    --bit:#ffb000; --mode:#63c8ff; --arg:#6fd3a8; --warn:#ff5f4d;
+  }
+  *{box-sizing:border-box}
+  body{margin:0;background:var(--edge);color:var(--silk);
+       font-family:"Hiragino Sans","Noto Sans JP","Yu Gothic",-apple-system,"Helvetica Neue",Arial,sans-serif;
+       font-size:15px;line-height:1.6;padding:20px 16px 60px}
+  .wrap{max-width:1300px;margin:0 auto}
+  header{margin:6px 0 18px}
+  h1{font-size:27px;margin:0 0 6px;letter-spacing:.05em}
+  header p{margin:0;color:var(--dim);max-width:62em}
+  .panel{background:var(--panel);border:1px solid #171b1d;border-radius:6px;
+         box-shadow:0 1px 0 #565e62 inset,0 10px 24px rgba(0,0,0,.35);padding:15px}
+  .panel + .panel{margin-top:16px}
+  .panel h2{font-size:15px;margin:0 0 4px;letter-spacing:.03em}
+  .note{color:var(--dim);font-size:12.5px;margin:0 0 10px}
+  .scroll{overflow-x:auto;padding-bottom:4px}
+  .lower{display:grid;grid-template-columns:minmax(0,auto) minmax(330px,1fr);gap:16px;align-items:start;margin-top:16px}
+  @media (max-width:1319px){.lower{grid-template-columns:1fr}}
+
+  /* 語（4ビットずつの区切り＝16進1桁ずつ） */
+  .word{display:flex;gap:7px;flex:none}
+  .nib{display:flex;gap:2px;flex:none}
+  .nib.half{margin-left:10px}
+  .bit{width:13px;height:22px;flex:none;padding:0;border:1px solid #20262a;border-radius:2px;background:#464d51;
+       cursor:pointer;box-shadow:0 1px 0 rgba(255,255,255,.06) inset}
+  .bit.on{background:var(--bit);box-shadow:0 0 5px rgba(255,176,0,.5)}
+  .bit:focus-visible{outline:2px solid #cfe9ff;outline-offset:1px}
+  .wlab{font-size:9.5px;color:#798285;text-align:center;width:13px;flex:none;font-variant-numeric:tabular-nums}
+  .hl{width:253px;flex:none;text-align:center;font-size:11px;padding:2px 0;border-radius:3px}
+  .hl.a{background:var(--bit);color:#241a00}
+  .hl.b{background:var(--arg);color:#0e241c;margin-left:10px}
+
+  .row{display:flex;align-items:center;gap:8px;padding:2px 0;border-radius:4px;width:max-content}
+  .row.pc{background:#4a5f52;box-shadow:0 0 0 1px #8fe0b8 inset}
+  .addr{width:104px;flex:none;font-size:11.5px;color:var(--dim);white-space:nowrap;
+        font-variant-numeric:tabular-nums}
+  .addr .d10{display:inline-block;width:18px;padding-right:6px;margin-right:6px;text-align:right;
+             border-right:1px solid #596165}
+  .row.pc .addr{color:#d9ffec}
+  .ro{display:flex;gap:8px;width:230px;flex:none;font-size:11.5px;
+      font-variant-numeric:tabular-nums;white-space:nowrap}
+  .ro .hx{width:54px;flex:none;text-align:right;color:#6d7679}
+  .ro .dc{width:54px;flex:none;text-align:right;color:var(--silk)}
+  .ro.hd .dc,.ro.hd .hx{color:var(--dim)}
+  .ro .rd{flex:1;min-width:0;overflow:hidden;text-overflow:ellipsis;color:var(--bit)}
+
+  /* CPU */
+  .cpu{display:grid;grid-template-columns:300px auto;gap:14px;align-items:start}
+  #irV{display:inline-block;min-width:200px}   /* 命令名が出ても幅が変わらないように */
+  @media (max-width:900px){.cpu{grid-template-columns:1fr}
+    #irV{min-width:0}}
+  .reg{display:flex;align-items:center;gap:9px;margin:5px 0}
+  .reg .n{width:76px;font-size:12.5px;color:var(--dim)}
+  .lamps{display:flex;gap:6px}
+  .lgrp{display:flex;gap:2px}
+  .lgrp.half{margin-left:9px}
+  .lamp{width:11px;height:11px;border-radius:50%;background:#3b4245;border:1px solid #20262a}
+  .lamp.on{background:var(--bit);box-shadow:0 0 5px rgba(255,176,0,.5)}
+  .lamp.on.m{background:var(--mode);box-shadow:0 0 6px rgba(99,200,255,.65)}
+  .lamp.on.a{background:var(--arg);box-shadow:0 0 5px rgba(111,211,168,.5)}
+  .reg .v{font-size:12.5px;font-variant-numeric:tabular-nums;color:var(--silk)}
+  .legend{font-size:11.5px;color:var(--dim);margin-top:6px}
+  .key{display:inline-block;width:9px;height:9px;border-radius:2px;margin:0 4px 0 12px}
+  .key:first-child{margin-left:0}
+  #msg{margin:10px 0 0;font-size:13px;min-height:1.6em;color:var(--arg)}
+  #msg.bad{color:var(--warn)}
+  .btns{display:flex;flex-wrap:wrap;gap:7px;margin-top:10px}
+  button.cmd{font:inherit;font-size:13px;color:var(--silk);background:var(--panel-3);
+             border:1px solid #20262a;border-radius:4px;padding:6px 12px;cursor:pointer;
+             box-shadow:0 1px 0 rgba(255,255,255,.08) inset}
+  button.cmd:hover{background:#4d565b}
+  button.cmd.primary{background:#7a5a12;border-color:#4a3608}
+  button.cmd.primary:hover{background:#8d6916}
+  button.cmd[disabled]{opacity:.4;cursor:default}
+  button.cmd:focus-visible{outline:2px solid #cfe9ff;outline-offset:2px}
+
+  .editor{display:flex;align-items:stretch;background:#12181a;border:1px solid #0d1214;
+          border-radius:4px;overflow:hidden}
+  .gutter{padding:9px 7px 9px 9px;background:#0f1416;border-right:1px solid #242c2f;
+          color:#6d7679;text-align:right;white-space:pre;overflow:hidden;user-select:none;
+          font-family:ui-monospace,SFMono-Regular,Menlo,Consolas,monospace;font-size:13px;line-height:1.5}
+  textarea{flex:1;min-width:0;height:200px;background:transparent;color:var(--silk);border:none;
+           padding:9px;font-family:ui-monospace,SFMono-Regular,Menlo,Consolas,monospace;
+           font-size:13px;line-height:1.5;resize:vertical}
+  textarea:focus-visible{outline:2px solid #cfe9ff;outline-offset:-2px}
+  #asmmsg{font-size:12.5px;margin-top:7px;color:var(--arg);white-space:pre-wrap}
+  #asmmsg.bad{color:var(--warn)}
+  #table{margin-top:9px;max-height:240px;overflow:auto;font-size:11.5px;
+         font-family:ui-monospace,SFMono-Regular,Menlo,Consolas,monospace}
+  #table div{display:grid;grid-template-columns:24px 74px 1fr;gap:8px;padding:1px 0}
+  #table .hx{color:var(--bit);text-align:right} #table .hx.d{color:var(--arg)}
+  #table .src{color:var(--dim);white-space:pre;overflow:hidden;text-overflow:ellipsis}
+
+  table.isa{border-collapse:collapse;width:100%;font-size:12px}
+  table.isa th,table.isa td{text-align:left;padding:3px 5px;border-bottom:1px solid #454c50}
+  table.isa th{color:var(--dim)}
+  table.isa td.c{font-family:ui-monospace,SFMono-Regular,Menlo,Consolas,monospace;white-space:nowrap}
+  @media (prefers-reduced-motion:reduce){*{transition:none!important}}
+</style>
+</head>
+<body>
+<div class="wrap">
+
+<header>
+  <h1>小さなコンピュータ ― 機械語版</h1>
+</header>
+
+<section class="panel">
+  <h2>CPU</h2>
+  <div class="cpu">
+    <div>
+      <div id="msg">アセンブルするか、スイッチで書き込んでください。</div>
+      <div class="btns">
+        <button class="cmd primary" id="bStep">1ステップ</button>
+        <button class="cmd" id="bRun">続けて実行</button>
+        <button class="cmd" id="bStop" disabled>止める</button>
+        <button class="cmd" id="bReset">最初から</button>
+        <button class="cmd" id="bClear">全部0にする</button>
+      </div>
+    </div>
+    <div>
+      <div class="reg"><span class="n">Acc</span><span class="lamps" id="accL"></span><span class="v" id="accV">0</span></div>
+      <div class="reg"><span class="n">Idx</span><span class="lamps" id="idxL"></span><span class="v" id="idxV">0</span></div>
+      <div class="reg"><span class="n">読んだ命令</span><span class="lamps" id="irL"></span><span class="v" id="irV">―</span></div>
+      <div class="legend">
+        <span class="key" style="background:var(--bit)"></span>命令コード
+        <span class="key" style="background:var(--mode)"></span>数値か番地かを決める1ビット
+        <span class="key" style="background:var(--arg)"></span>オペランド（数値または番地）
+      </div>
+    </div>
+  </div>
+</section>
+
+<div class="lower">
+  <section class="panel">
+    <h2>メモリ</h2>
+    <div class="scroll">
+      <div class="row" style="padding-bottom:4px">
+        <span class="addr"></span>
+        <div class="word"><span class="hl a">命令コード（上位16ビット）</span><span class="hl b">オペランド（下位16ビット）</span></div>
+      </div>
+      <div class="row" id="head" style="padding-bottom:5px">
+        <span class="addr" style="font-size:11px">番地（実行回数）</span>
+      </div>
+      <div id="mem"></div>
+    </div>
+  </section>
+
+  <div>
+    <section class="panel">
+      <h2>アセンブリ言語からの翻訳</h2>
+      <div class="editor">
+        <div class="gutter" id="gutter">0</div>
+        <textarea id="src" spellcheck="false" wrap="off"></textarea>
+      </div>
+      <div class="btns" style="margin-top:8px">
+        <button class="cmd primary" id="bAsm">機械語にしてメモリに書き込む</button>
+      </div>
+      <div id="asmmsg"></div>
+      <div id="table"></div>
+    </section>
+
+    <section class="panel">
+      <h2>命令表</h2>
+      <p class="note">コードは2つあります。命令コードの最下位1ビットが0なら、オペランドを数値として処理します、最下位1ビットが1なら、オペランドを番地として処理します。</p>
+      <table class="isa" id="isa"><tr><th>名前</th><th>コード</th><th>動作</th></tr></table>
+    </section>
+  </div>
+</div>
+</div>
+
+<script>
+/* ===== 「小さなコンピュータ」機械語版 コア（32ビット・原本と同一の語形式） =====
+   1語 = (命令コード << 16) | オペランド
+   偶数コード … オペランドは数値そのもの / 奇数コード … オペランドは番地
+   1行 = 1語、番地 = 行番号。 */
+
+const OPS = {nop:0, stop:2, load:4, loadx:6, store:8, storex:10, add:12, sub:14,
+             iload:16, iadd:18, isub:20, ifz:22, ifnz:24, ifp:26, ifn:28, jump:30, neg:32};
+const MNEMONICS = Object.keys(OPS);
+const MEMSIZE = 32;                        // 原本は500行。スイッチ盤に載る32語に制限
+const encode = (opcode, addr) => (opcode << 16) | (0xffff & addr);
+const opOf   = w => (w >> 16) & 0xffff;
+const addrOf = w => w & 0xffff;
+const hex    = w => w.toString(16);        // 原本の表示と同じ
+const u32    = w => w >>> 0;               // 2進表示用（32ビットの並び）
+const NAME_OF_CODE = {};
+for (const m in OPS){ NAME_OF_CODE[OPS[m]] = m; NAME_OF_CODE[OPS[m]+1] = m; }
+
+/* ---- アセンブラ（原本と同じ規則） ---- */
+const PAT = /^ *(|[A-Za-z][A-Za-z0-9]*:) *([-a-z0-9]+) *([A-Za-z0-9]*) *$/;
+
+function assemble(src){
+  const lns = src.split(/\r\n|\r|\n/);
+  if (lns.length > MEMSIZE) throw new Error('行数が' + MEMSIZE + '行を超えています（1行が1語です）');
+  const lab = [], opr = [], opd = [];
+  for (const line of lns){
+    if (/^ *$/.test(line)){ lab.push(''); opr.push('nop'); opd.push('0'); continue; }
+    const a = line.match(PAT);
+    if (a == null){ lab.push(''); opr.push('?'); opd.push(''); }
+    else { lab.push(a[1]); opr.push(a[2]); opd.push(a[3]); }
+  }
+  const tbl = {}, errors = [];
+  lns.forEach((_, i) => {
+    if (lab[i] === '') return;
+    const name = lab[i].slice(0, -1);
+    if (tbl[name] !== undefined) errors.push(i + '番地: ラベル ' + name + ' が二度定義されています');
+    tbl[name] = i;
+  });
+
+  const mem = new Array(MEMSIZE).fill(0);
+  const rows = [];
+  lns.forEach((line, i) => {
+    let msg = '', opcode = OPS[opr[i]], operand = opd[i];
+    if (/^[-0-9]+$/.test(opr[i])){ opcode = 0; operand = opr[i]; }     // 数値だけの行＝データ
+    else if (opcode === undefined) msg = '未定義の命令: ' + opr[i];
+    let addr = 0;
+    ++opcode;                                                          // いったん奇数（番地）に
+    if (operand === '' || operand === undefined){ /* オペランド無し */ }
+    else if (/^[-0-9]+$/.test(operand)){ addr = parseInt(operand, 10); --opcode; }
+    else if (tbl[operand] === undefined) msg += (msg ? ' / ' : '') + '未定義のラベル: ' + operand;
+    else addr = tbl[operand];
+    let word = 0;
+    if (msg === ''){
+      word = (opcode === 0) ? (addr | 0) : encode(opcode, addr);       // コード0はデータ語（数そのもの）
+      mem[i] = word;
+    } else errors.push(i + '番地: ' + msg);
+    rows.push({addr:i, word, src:line, error:msg});
+  });
+  if (errors.length) throw new Error(errors.join('\n'));
+  return {mem, tbl, rows, used:lns.length};
+}
+
+/* ---- 解読 ---- */
+function decodeWord(w){
+  const c = opOf(w);
+  const name = NAME_OF_CODE[c];
+  if (name === undefined) return null;
+  return {code:c, mnem:name, mode:(c & 1), addr:addrOf(w)};
+}
+
+/* ---- CPU（原本の switch をそのまま移植） ---- */
+function makeCPU(mem){
+  return {mem:mem.slice(), pc:0, acc:0, idx:0, halted:false, error:null,
+          count:new Array(MEMSIZE).fill(0), steps:0};
+}
+function step(s){
+  if (s.halted) return s;
+  if (s.pc < 0 || s.pc >= MEMSIZE){ s.halted = true; s.error = 'メモリの外に出ました'; return s; }
+  const inst = s.mem[s.pc];
+  s.count[s.pc]++;
+  const at = s.pc;
+  s.pc++;
+  const opcode = opOf(inst), addr = addrOf(inst);
+  const m = a => {
+    if (a < 0 || a >= MEMSIZE){ s.halted = true; s.error = a + '番地はありません'; return 0; }
+    return s.mem[a];
+  };
+  const put = (a, v) => {
+    if (a < 0 || a >= MEMSIZE){ s.halted = true; s.error = a + '番地はありません'; return; }
+    s.mem[a] = v | 0;
+  };
+  switch (opcode){
+    case 0: case 1: break;
+    case 2: case 3: s.halted = true; s.pc = at; break;
+    case 4:  s.acc = addr; break;
+    case 5:  s.acc = m(addr); break;
+    case 6:  s.acc = addr + s.idx; break;
+    case 7:  s.acc = m(addr + s.idx); break;
+    case 8: case 9:   put(addr, s.acc); break;
+    case 10: case 11: put(addr + s.idx, s.acc); break;
+    case 12: s.acc += addr; break;
+    case 13: s.acc += m(addr); break;
+    case 14: s.acc -= addr; break;
+    case 15: s.acc -= m(addr); break;
+    case 16: s.idx = addr; break;
+    case 17: s.idx = m(addr); break;
+    case 18: s.idx += addr; break;
+    case 19: s.idx += m(addr); break;
+    case 20: s.idx -= addr; break;
+    case 21: s.idx -= m(addr); break;
+    case 22: case 23: if (s.acc === 0) s.pc = addr; break;
+    case 24: case 25: if (s.acc !== 0) s.pc = addr; break;
+    case 26: case 27: if (s.acc >  0) s.pc = addr; break;
+    case 28: case 29: if (s.acc <  0) s.pc = addr; break;
+    case 30: case 31: s.pc = addr; break;
+    case 32: case 33: s.acc = -s.acc; break;
+    default: s.halted = true; s.error = '命令コード ' + opcode + ' は決められていません'; break;
+  }
+  s.steps++;
+  return s;
+}
+function run(mem, limit = 3000){
+  const s = makeCPU(mem);
+  while (!s.halted && s.steps < limit) step(s);
+  return s;
+}
+
+/* ===== 画面 ===== */
+const MEANING = {
+  nop:'何もしない', stop:'プログラムの実行を停止', load:'Accに値を持って来る', loadx:'〃（値/番地にIdxを足す）',
+  store:'Accの値を格納する', storex:'〃（番地にIdxを足す）', add:'Accに値を足す', sub:'Accから値を引く',
+  iload:'Idxに値を持って来る', iadd:'Idxに値を足す', isub:'Idxから値を引く',
+  ifz:'Acc＝0なら分岐', ifnz:'Acc≠0なら分岐', ifp:'Acc＞0なら分岐', ifn:'Acc＜0なら分岐',
+  jump:'無条件に分岐', neg:'Accの符号を反転'
+};
+const NO_MODE = new Set(['nop','stop','store','storex','ifz','ifnz','ifp','ifn','jump','neg']);
+const SAMPLES = {
+  add:`      load a\n      add b\n      store c\n      stop\na:    3\nb:    4\nc:    0`,
+  sum:`      load 0\n      store sum\n      load 5\n      store i\nloop: load sum\n      add i\n      store sum\n      load i\n      sub 1\n      store i\n      ifp loop\n      stop\nsum:  0\ni:    0`,
+  neg:`      load 3\n      neg\n      store x\n      stop\nx:    0`,
+  idx:`      iload 2\n      loadx d\n      store out\n      stop\nd:    10\n      20\n      30\n      40\nout:  0`,
+  self:`      load w\n      store 3\n      nop\n      0\nw:    196608`
+};
+
+let mem = new Array(MEMSIZE).fill(0);
+let cpu = makeCPU(mem);
+let timer = null, rows = [];
+let cur = null, curWord = 0;   // 直前に実行した番地とその語（未実行なら null）
+
+const $ = id => document.getElementById(id);
+const bits32 = v => u32(v).toString(2).padStart(32,'0');
+
+/* 語の見た目（4ビットずつ8組）を作る */
+function buildWord(parent, make){
+  const w = document.createElement('div'); w.className = 'word';
+  const cells = [];
+  for (let g = 0; g < 8; g++){
+    const nib = document.createElement('div');
+    nib.className = 'nib' + (g === 4 ? ' half' : '');
+    for (let k = 0; k < 4; k++) cells.push(make(g*4 + k, nib));
+    w.appendChild(nib);
+  }
+  parent.appendChild(w);
+  return cells;
+}
+
+/* 見出し：各ビットの重み（4ビットごとに 8 4 2 1） */
+buildWord($('head'), (i, nib) => {
+  const s = document.createElement('span');
+  s.className = 'wlab'; s.textContent = [8,4,2,1][i % 4];
+  nib.appendChild(s); return s;
+});
+(function(){
+  const r = document.createElement('span');
+  r.className = 'ro hd';
+  r.innerHTML = '<span class="hx">16進数</span><span class="dc">10進数</span><span class="rd"></span>';
+  $('head').appendChild(r);
+})();
+
+/* メモリ32行 */
+const bitBtn = [];
+for (let a = 0; a < MEMSIZE; a++){
+  const row = document.createElement('div');
+  row.className = 'row'; row.id = 'r'+a;
+  const ad = document.createElement('span');
+  ad.className = 'addr'; ad.id = 'a'+a;
+  row.appendChild(ad);
+  bitBtn[a] = buildWord(row, (i, nib) => {
+    const b = document.createElement('button');
+    b.type = 'button'; b.className = 'bit';
+    b.setAttribute('aria-label', a+'番地の'+(32-i)+'ビット目');
+    b.addEventListener('click', () => { stopRun(); cpu.mem[a] = cpu.mem[a] ^ (1 << (31-i)); render(); });
+    nib.appendChild(b); return b;
+  });
+  const ro = document.createElement('span'); ro.className = 'ro'; ro.id = 'ro'+a;
+  row.appendChild(ro);
+  $('mem').appendChild(row);
+}
+
+/* レジスタのランプ */
+function buildLamps(box, kind){
+  const arr = [];
+  for (let g = 0; g < 8; g++){
+    const grp = document.createElement('div');
+    grp.className = 'lgrp' + (g === 4 ? ' half' : '');
+    for (let k = 0; k < 4; k++){
+      const i = g*4 + k;
+      const s = document.createElement('span');
+      let c = 'lamp';
+      if (kind === 'ir'){ if (i === 15) c += ' m'; else if (i > 15) c += ' a'; }
+      else if (kind === 'a') c += ' a';
+      s.className = c; grp.appendChild(s); arr.push(s);
+    }
+    box.appendChild(grp);
+  }
+  return arr;
+}
+const accL = buildLamps($('accL'));
+const idxL = buildLamps($('idxL'));
+const irL  = buildLamps($('irL'), 'ir');
+
+/* 命令表 */
+MNEMONICS.forEach(m => {
+  const c = OPS[m];
+  const tr = document.createElement('tr');
+  tr.innerHTML = '<td>'+m+'</td>'
+    + '<td class="c">'+c.toString(16).padStart(2,'0')+','+(c+1).toString(16).padStart(2,'0')+'</td>'
+    + '<td>'+MEANING[m]+'</td>';
+  $('isa').appendChild(tr);
+});
+
+/* 表示 */
+function readingOf(w){
+  const d = decodeWord(w);
+  if (!d) return '未定義のコード';
+  if (NO_MODE.has(d.mnem)) return d.mnem + (d.addr ? ' ' + d.addr : '');
+  return d.mnem + ' ' + (d.mode ? d.addr + '番地' : d.addr);
+}
+function setLamps(arr, v, n){ for (let i = 0; i < n; i++) arr[i].classList.toggle('on', ((v >>> (n-1-i)) & 1) === 1); }
+function render(){
+  for (let a = 0; a < MEMSIZE; a++){
+    const w = cpu.mem[a], u = u32(w);
+    for (let i = 0; i < 32; i++) bitBtn[a][i].classList.toggle('on', ((u >>> (31-i)) & 1) === 1);
+    $('a'+a).innerHTML = '<span class="d10">' + a + '</span>'
+                       + a.toString(2).padStart(5,'0') + '（' + cpu.count[a] + '）';
+    $('ro'+a).innerHTML = '<span class="hx">' + hex(w) + '</span>'
+                        + '<span class="dc">' + w + '</span>'
+                        + '<span class="rd">' + readingOf(w) + '</span>';
+    $('r'+a).classList.toggle('pc', cur !== null && a === cur);
+  }
+  setLamps(accL, u32(cpu.acc), 32); $('accV').textContent = cpu.acc;
+  setLamps(idxL, u32(cpu.idx), 32); $('idxV').textContent = cpu.idx;
+  if (cur === null){ setLamps(irL, 0, 32); $('irV').textContent = '―'; }
+  else {
+    const w = curWord, d = decodeWord(w);
+    setLamps(irL, u32(w), 32);
+    $('irV').textContent = d
+      ? (NO_MODE.has(d.mnem) ? d.mnem : d.mnem + ' ' + (d.mode ? d.addr+'番地の中身' : '数値'+d.addr))
+      : '未定義のコード';
+  }
+}
+function say(m, bad){ $('msg').textContent = m; $('msg').classList.toggle('bad', !!bad); }
+
+/* 実行 */
+function doStep(){
+  if (cpu.halted){ say('止まっています。「最初から」を押してください。'); return; }
+  const at = cpu.pc, d = decodeWord(cpu.mem[at]);
+  curWord = cpu.mem[at];
+  step(cpu);
+  cur = at;                          // いま実行した番地を選択したままにする
+  if (cpu.error) say(cpu.error, true);
+  else if (cpu.halted) say(at + '番地の stop で停止しました。');
+  else if (d) say(at + '番地の ' + d.mnem + ' を実行しました。');
+  render();
+  if (cpu.halted) stopRun();
+}
+function runCont(){
+  if (timer) return;
+  $('bStop').disabled = false; $('bRun').disabled = true;
+  timer = setInterval(() => { doStep(); if (cpu.halted) stopRun(); }, 350);
+}
+function stopRun(){ if (timer){ clearInterval(timer); timer = null; } $('bStop').disabled = true; $('bRun').disabled = false; }
+function resetRun(){
+  stopRun();
+  cpu = makeCPU(cpu.mem.slice());     // スイッチで直した内容は残す
+  cur = null;
+  render(); say('レジスタを戻しました。0番地から実行します。');
+}
+
+/* アセンブル */
+function doAssemble(msg){
+  stopRun();
+  try{
+    const r = assemble($('src').value);
+    mem = r.mem.slice();
+    cpu = makeCPU(mem);
+    rows = r.rows;
+    cur = null;
+    $('asmmsg').classList.remove('bad');
+    $('asmmsg').textContent = r.used + '行を' + r.used + '語に翻訳しました。';
+    showTable(); render(); say(msg || '0番地から実行します。');
+  }catch(e){
+    $('asmmsg').classList.add('bad');
+    $('asmmsg').textContent = e.message;
+  }
+}
+function showTable(){
+  $('table').innerHTML = rows.map(x => {
+    const isData = opOf(x.word) === 0;
+    return '<div><span>'+String(x.addr).padStart(2,' ')+'</span>'
+      + '<span class="hx'+(isData?' d':'')+'">'+hex(x.word)+'</span>'
+      + '<span class="src">'+x.src.replace(/</g,'&lt;')+'</span></div>';
+  }).join('');
+}
+
+/* 行番号（番地と同じ0始まり） */
+function updateGutter(){
+  const n = $('src').value.split('\n').length;
+  $('gutter').textContent = Array.from({length:n}, (_, i) => i).join('\n');
+}
+$('src').addEventListener('input', updateGutter);
+$('src').addEventListener('scroll', () => { $('gutter').scrollTop = $('src').scrollTop; });
+
+/* つなぎこみ */
+$('bStep').addEventListener('click', () => { stopRun(); doStep(); });
+$('bRun').addEventListener('click', runCont);
+$('bStop').addEventListener('click', () => { stopRun(); say('止めました。'); });
+$('bReset').addEventListener('click', resetRun);
+$('bClear').addEventListener('click', () => {
+  stopRun(); mem = new Array(MEMSIZE).fill(0); cpu = makeCPU(mem);
+  cur = null; rows = []; $('table').innerHTML = ''; $('asmmsg').textContent = '';
+  render(); say('メモリを全部0にしました。');
+});
+$('bAsm').addEventListener('click', () => doAssemble());
+
+$('src').value = SAMPLES.add;
+updateGutter();
+doAssemble();
+</script>
+</body>
+</html>
