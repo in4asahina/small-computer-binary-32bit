@@ -321,7 +321,8 @@ const MEANING = {
   ifz:'Acc＝0なら分岐', ifnz:'Acc≠0なら分岐', ifp:'Acc＞0なら分岐', ifn:'Acc＜0なら分岐',
   jump:'無条件に分岐', neg:'Accの符号を反転'
 };
-const NO_MODE = new Set(['nop','stop','store','storex','ifz','ifnz','ifp','ifn','jump','neg']);
+const NO_OPERAND = new Set(['nop','stop','neg']);                                  // オペランドを使わない
+const ADDR_ONLY  = new Set(['store','storex','ifz','ifnz','ifp','ifn','jump']);    // 必ず番地として使う
 
 let mem = new Array(MEMSIZE).fill(0);
 let cpu = makeCPU(mem);
@@ -414,8 +415,11 @@ MNEMONICS.forEach(m => {
 function readingOf(w){
   const d = decodeWord(w);
   if (!d) return '未定義のコード';
-  if (NO_MODE.has(d.mnem)) return d.mnem + (d.addr ? ' ' + d.addr : '');
-  return d.mnem + ' ' + (d.mode ? d.addr + '番地' : d.addr);
+  if (NO_OPERAND.has(d.mnem)) return d.mnem;
+  if (d.mnem === 'loadx')  return 'loadx ' + d.addr + '＋Idx' + (d.mode ? '番地' : '');
+  if (d.mnem === 'storex') return 'storex ' + d.addr + '＋Idx番地';
+  if (ADDR_ONLY.has(d.mnem)) return d.mnem + ' ' + d.addr + '番地';
+  return d.mnem + ' ' + d.addr + (d.mode ? '番地' : '');
 }
 function setLamps(arr, v, n){ for (let i = 0; i < n; i++) arr[i].classList.toggle('on', ((v >>> (n-1-i)) & 1) === 1); }
 function render(){
@@ -433,11 +437,9 @@ function render(){
   setLamps(idxL, u32(cpu.idx), 32); $('idxV').textContent = cpu.idx;
   if (cur === null){ setLamps(irL, 0, 32); $('irV').textContent = '―'; }
   else {
-    const w = curWord, d = decodeWord(w);
+    const w = curWord;
     setLamps(irL, u32(w), 32);
-    $('irV').textContent = d
-      ? (NO_MODE.has(d.mnem) ? d.mnem : d.mnem + ' ' + (d.mode ? d.addr+'番地の中身' : '数値'+d.addr))
-      : '未定義のコード';
+    $('irV').textContent = readingOf(w);
   }
 }
 function say(m, bad){ $('msg').textContent = m; $('msg').classList.toggle('bad', !!bad); }
