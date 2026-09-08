@@ -91,7 +91,7 @@
           font-family:ui-monospace,SFMono-Regular,Menlo,Consolas,monospace;font-size:13px;line-height:1.5}
   textarea{flex:1;min-width:0;height:408px;background:transparent;color:var(--silk);border:none;
            padding:9px;font-family:ui-monospace,SFMono-Regular,Menlo,Consolas,monospace;
-           font-size:13px;line-height:1.5;resize:vertical}
+           font-size:13px;line-height:1.5;resize:none;overflow-y:hidden}
   textarea:focus-visible{outline:2px solid #cfe9ff;outline-offset:-2px}
   #asmmsg{font-size:12.5px;margin-top:7px;color:var(--arg);white-space:pre-wrap}
   #asmmsg.bad{color:var(--warn)}
@@ -414,7 +414,7 @@ MNEMONICS.forEach(m => {
 /* 表示 */
 function readingOf(w){
   const d = decodeWord(w);
-  if (!d) return '未定義のコード';
+  if (!d) return 'その他';        // 命令表にない番号（負の数のデータなど）
   if (NO_OPERAND.has(d.mnem)) return d.mnem;
   if (d.mnem === 'loadx')  return 'loadx ' + d.addr + '＋Idx' + (d.mode ? '番地' : '');
   if (d.mnem === 'storex') return 'storex ' + d.addr + '＋Idx番地';
@@ -502,6 +502,8 @@ function showTable(){
 function updateGutter(){
   const n = $('src').value.split('\n').length;
   $('gutter').textContent = Array.from({length:n}, (_, i) => i).join('\n');
+  // 行数に合わせて枠を伸ばす（最低20行、1行19.5px、上下の余白18px）
+  $('src').style.height = (Math.max(20, n) * 19.5 + 18) + 'px';
 }
 $('src').addEventListener('input', updateGutter);
 $('src').addEventListener('scroll', () => { $('gutter').scrollTop = $('src').scrollTop; });
