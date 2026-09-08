@@ -95,11 +95,14 @@
   textarea:focus-visible{outline:2px solid #cfe9ff;outline-offset:-2px}
   #asmmsg{font-size:12.5px;margin-top:7px;color:var(--arg);white-space:pre-wrap}
   #asmmsg.bad{color:var(--warn)}
-  #table{margin-top:9px;max-height:240px;overflow:auto;font-size:11.5px;
+  #table{max-height:420px;overflow:auto;font-size:11.5px;line-height:1.55;
          font-family:ui-monospace,SFMono-Regular,Menlo,Consolas,monospace}
-  #table div{display:grid;grid-template-columns:24px 74px 1fr;gap:8px;padding:1px 0}
-  #table .hx{color:var(--bit);text-align:right} #table .hx.d{color:var(--arg)}
-  #table .src{color:var(--dim);white-space:pre;overflow:hidden;text-overflow:ellipsis}
+  #table div{display:flex;gap:8px;padding:1px 0;white-space:nowrap}
+  #table .ln{width:20px;flex:none;text-align:right;color:#6d7679}
+  #table .op{color:var(--bit)} #table .ar{color:var(--arg)}
+  #table .op.d{color:var(--arg)}
+  #table .hx{flex:1;text-align:right;color:var(--dim)}
+  #table .empty{color:var(--dim)}
 
   table.isa{border-collapse:collapse;width:100%;font-size:12px}
   table.isa th,table.isa td{text-align:left;padding:3px 5px;border-bottom:1px solid #454c50}
@@ -167,6 +170,10 @@
         <button class="cmd primary" id="bAsm">機械語にしてメモリに書き込む</button>
       </div>
       <div id="asmmsg"></div>
+    </section>
+
+    <section class="panel">
+      <h2>機械語</h2>
       <div id="table"></div>
     </section>
 
@@ -479,11 +486,13 @@ function doAssemble(msg){
   }
 }
 function showTable(){
+  if (rows.length === 0){ $('table').innerHTML = '<div class="empty">まだ翻訳していません</div>'; return; }
   $('table').innerHTML = rows.map(x => {
-    const isData = opOf(x.word) === 0;
-    return '<div><span>'+String(x.addr).padStart(2,' ')+'</span>'
-      + '<span class="hx'+(isData?' d':'')+'">'+hex(x.word)+'</span>'
-      + '<span class="src">'+x.src.replace(/</g,'&lt;')+'</span></div>';
+    const b = bits32(x.word), isData = opOf(x.word) === 0;
+    return '<div><span class="ln">'+x.addr+'</span>'
+      + '<span class="op'+(isData?' d':'')+'">'+b.slice(0,16)+'</span>'
+      + '<span class="ar">'+b.slice(16)+'</span>'
+      + '<span class="hx">'+hex(x.word)+'</span></div>';
   }).join('');
 }
 
@@ -508,6 +517,7 @@ $('bClear').addEventListener('click', () => {
 $('bAsm').addEventListener('click', () => doAssemble());
 
 updateGutter();
+showTable();
 render();
 </script>
 </body>
