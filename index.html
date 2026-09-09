@@ -22,6 +22,8 @@
          box-shadow:0 1px 0 #565e62 inset,0 10px 24px rgba(0,0,0,.35);padding:15px}
   .panel + .panel{margin-top:16px}
   .panel h2{font-size:15px;margin:0 0 4px;letter-spacing:.03em}
+  .h2row{display:flex;align-items:center;gap:7px}
+  button.cmd.sm{padding:0 10px;font-size:14px;line-height:1.7}
   .note{color:var(--dim);font-size:12.5px;margin:0 0 10px}
   .scroll{overflow-x:auto;padding-bottom:4px}
   .lower{display:grid;grid-template-columns:minmax(0,auto) minmax(330px,1fr);gap:16px;align-items:start;margin-top:16px}
@@ -161,7 +163,10 @@
 
   <div>
     <section class="panel">
-      <h2>アセンブリ言語</h2>
+      <h2 class="h2row">アセンブリ言語
+        <button class="cmd sm" id="fMinus" title="文字を小さく">−</button>
+        <button class="cmd sm" id="fPlus" title="文字を大きく">＋</button>
+      </h2>
       <div class="editor">
         <div class="gutter" id="gutter">0</div>
         <textarea id="src" spellcheck="false" wrap="off"></textarea>
@@ -498,13 +503,36 @@ function showTable(){
   }).join('');
 }
 
+/* 縦に並べても横幅に収まらないときは、全体を縮小して収める */
+function fitWidth(){
+  const wrap = document.querySelector('.wrap');
+  const row = $('mem').firstElementChild;
+  if (!row) return;
+  wrap.style.zoom = '1';                                   // いったん等倍に戻して実寸を測る
+  const need = row.getBoundingClientRect().width + 32;     // メモリ1行＋パネルの余白
+  const avail = document.documentElement.clientWidth - 32; // 画面から本文の余白を引いた幅
+  if (need > avail) wrap.style.zoom = avail / need;
+}
+window.addEventListener('resize', fitWidth);
+
 /* 行番号（番地と同じ0始まり） */
+let fontPx = 13;                       // 入力欄の文字の大きさ（13px〜28px、標準13px）
+function setFont(px){
+  fontPx = Math.min(28, Math.max(13, px));
+  $('src').style.fontSize = fontPx + 'px';
+  $('gutter').style.fontSize = fontPx + 'px';
+  $('fMinus').disabled = (fontPx <= 13);   // 下限・上限では押せなくする
+  $('fPlus').disabled  = (fontPx >= 28);
+  updateGutter();
+}
 function updateGutter(){
   const n = $('src').value.split('\n').length;
   $('gutter').textContent = Array.from({length:n}, (_, i) => i).join('\n');
-  // 行数に合わせて枠を伸ばす（最低20行、1行19.5px、上下の余白18px）
-  $('src').style.height = (Math.max(20, n) * 19.5 + 18) + 'px';
+  // 行数に合わせて枠を伸ばす（最低20行、行の高さは文字の1.5倍、上下の余白18px）
+  $('src').style.height = (Math.max(20, n) * fontPx * 1.5 + 18) + 'px';
 }
+$('fMinus').addEventListener('click', () => setFont(fontPx - 1));
+$('fPlus').addEventListener('click', () => setFont(fontPx + 1));
 $('src').addEventListener('input', updateGutter);
 $('src').addEventListener('scroll', () => { $('gutter').scrollTop = $('src').scrollTop; });
 
@@ -520,9 +548,10 @@ $('bClear').addEventListener('click', () => {
 });
 $('bAsm').addEventListener('click', () => doAssemble());
 
-updateGutter();
+setFont(13);
 showTable();
 render();
+fitWidth();
 </script>
 </body>
 </html>
